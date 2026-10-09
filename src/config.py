@@ -46,5 +46,13 @@ TEST_SIZE = 0.2
 COST_FN = 10.0
 COST_FP = 1.0
 
+TRACKING_URI = f"sqlite:///{ROOT / 'mlflow.db'}"
 MLFLOW_EXPERIMENT = "predictive-maintenance"
 REGISTERED_MODEL_NAME = "pm-failure-classifier"
+CHALLENGER_ALIAS = "challenger"
+CHAMPION_ALIAS = "champion"
+
+# Promotion gate: a challenger must clear these on the held-out test set
+# before it can be compared with (and replace) the champion.
+MIN_RECALL = 0.75
+MIN_PR_AUC = 0.80

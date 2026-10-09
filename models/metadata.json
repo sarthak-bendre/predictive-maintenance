@@ -14,21 +14,20 @@
     "type_M",
     "type_H"
   ],
-  "mlflow_run_id": "f6c5eba0aa894888a57b6db419f50b85",
+  "mlflow_run_id": "e21d03b4516c452987d8320b81644a48",
   "registered_model": "pm-failure-classifier",
   "registered_version": 1,
-  "metrics": {
-    "run": "random_forest__class_weight__tuned",
-    "threshold": 0.38,
-    "cv_pr_auc": 0.8997,
-    "cv_recall": 0.8487,
-    "cv_precision": 0.8949,
-    "cv_f1": 0.8712,
-    "cv_cost": 437.0,
-    "test_pr_auc": 0.8954,
-    "test_recall": 0.8529,
-    "test_precision": 0.8406,
-    "test_f1": 0.8467,
-    "test_cost": 111.0
+  "alias": "champion",
+  "test_metrics": {
+    "pr_auc": 0.8954,
+    "roc_auc": 0.975,
+    "recall": 0.8529,
+    "precision": 0.8406,
+    "f1": 0.8467,
+    "tp": 58,
+    "fp": 11,
+    "fn": 10,
+    "tn": 1921,
+    "cost": 111.0
   }
 }

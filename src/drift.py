@@ -5,9 +5,12 @@ Two batches are compared against the training set:
 - summer:   the test set with a simulated heatwave. Ambient air is +4 K, but
             the process only warms by +2.5 K because cooling works harder, so
             the process/air gap also shrinks, which is the heat-dissipation risk.
-The script writes an HTML report per batch and prints which features drifted.
+The script writes an HTML report per batch, prints which features drifted and,
+inside GitHub Actions, exposes `retrain=true|false` to the next step.
 """
+import argparse
 import json
+import os
 import sys
 
 import pandas as pd
@@ -49,17 +52,29 @@ def drift_report(reference: pd.DataFrame, current: pd.DataFrame, name: str) -> d
     }
 
 
-def main() -> int:
+SCENARIOS = {"baseline": lambda df: df, "summer": simulate_summer}
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--scenario", choices=[*SCENARIOS, "all"], default="all",
+                        help="which simulated batch to compare with the training data")
+    args = parser.parse_args(argv)
+
     train = pd.read_csv(PROCESSED_DIR / "train.csv")
     test = pd.read_csv(PROCESSED_DIR / "test.csv")
-    results = [
-        drift_report(train, test, "baseline"),
-        drift_report(train, simulate_summer(test), "summer"),
-    ]
+    names = list(SCENARIOS) if args.scenario == "all" else [args.scenario]
+    results = [drift_report(train, SCENARIOS[n](test), n) for n in names]
     (REPORTS_DIR / "drift_summary.json").write_text(json.dumps(results, indent=2))
     for r in results:
         flag = "RETRAIN" if r["retrain_recommended"] else "ok"
         print(f"[{flag}] {r['batch']}: {r['share_drifted']:.0%} drifted -> {r['drifted_features']}")
+
+    # Hand the decision to the next GitHub Actions step.
+    if os.getenv("GITHUB_OUTPUT"):
+        retrain = any(r["retrain_recommended"] for r in results)
+        with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+            fh.write(f"retrain={str(retrain).lower()}\n")
     return 0
 
 

@@ -1,0 +1,101 @@
+name: Monitor drift and retrain
+
+# Checks an incoming batch for data drift. If drift is found, it retrains and
+# runs the promotion gate against the current champion. The MLflow registry
+# (mlflow.db + mlruns/) is carried between runs in the Actions cache so the
+# champion persists; a production setup would use a hosted MLflow server.
+on:
+  schedule:
+    - cron: "0 6 * * 1,4"   # Mon and Thu 06:00 UTC: batch = unchanged data
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Simulated incoming batch
+        type: choice
+        options: [summer, baseline]
+        default: summer
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    env:
+      MLFLOW_DISABLE_AGENT_HINT: "1"
+      SCENARIO: ${{ inputs.scenario || 'baseline' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore model registry
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            mlflow.db
+            mlruns
+          key: mlflow-registry-${{ github.run_id }}
+          restore-keys: mlflow-registry-
+
+      - name: Ingest, validate and split
+        run: |
+          python -m src.ingest
+          python -m src.train --split-only
+
+      - name: Drift check
+        id: drift
+        run: python -m src.drift --scenario "$SCENARIO"
+
+      - name: Retrain
+        if: steps.drift.outputs.retrain == 'true'
+        run: python -m src.train
+
+      - name: Promotion gate
+        if: steps.drift.outputs.retrain == 'true'
+        run: python -m src.promote
+
+      - name: Save model registry
+        if: steps.drift.outputs.retrain == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            mlflow.db
+            mlruns
+          key: mlflow-registry-${{ github.run_id }}
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Drift check: \`$SCENARIO\` batch"
+            echo '```json'; cat reports/drift_summary.json; echo '```'
+            if [ -f reports/promotion.json ]; then
+              echo "## Promotion gate"
+              echo '```json'; cat reports/promotion.json; echo '```'
+            else
+              echo "No retraining needed."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload reports and model
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitor-${{ env.SCENARIO }}-${{ github.run_number }}
+          path: |
+            reports/drift_*.html
+            reports/drift_summary.json
+            reports/promotion.json
+            models/
+          if-no-files-found: ignore

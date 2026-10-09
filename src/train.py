@@ -1,13 +1,11 @@
 """Train and compare models, log every run to MLflow, register the best one.
 
 Candidates: {Logistic Regression, Random Forest, XGBoost} x {class weights, SMOTE}.
-Random Forest and XGBoost (class weights) also get a randomized hyperparameter
+The winner is registered as the "challenger"; src/promote.py decides whether it
+replaces the production "champion". Random Forest and XGBoost (class weights) also get a randomized hyperparameter
 search. Selection and threshold tuning use 5-fold out-of-fold predictions on the
 training set only; the test set is touched once, for the final report.
 """
-import json
-
-import joblib
 import mlflow
 import mlflow.sklearn
 import numpy as np
@@ -26,18 +24,18 @@ from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
 
 from src.config import (
+    CHALLENGER_ALIAS,
     MLFLOW_EXPERIMENT,
-    MODELS_DIR,
     PROCESSED_DIR,
     RANDOM_STATE,
     REGISTERED_MODEL_NAME,
     REPORTS_DIR,
-    ROOT,
+    TRACKING_URI,
     TARGET,
     TEST_SIZE,
 )
 from src.evaluate import best_threshold, classification_metrics
-from src.features import FEATURE_COLS, build_xy
+from src.features import build_xy
 from src.ingest import load_raw
 from src.validate import validate
 
@@ -124,19 +122,24 @@ def tune(name: str, X, y, pos_weight: float) -> dict:
     return search.best_params_
 
 
-def main() -> None:
-    df = validate(load_raw())
-    train_df, test_df = split(df)
+def prepare_split() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Validate the raw data and write the (deterministic) train/test split."""
+    train_df, test_df = split(validate(load_raw()))
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     train_df.to_csv(PROCESSED_DIR / "train.csv", index=False)
     test_df.to_csv(PROCESSED_DIR / "test.csv", index=False)
+    return train_df, test_df
+
+
+def main() -> None:
+    train_df, test_df = prepare_split()
 
     X_train, y_train = build_xy(train_df)
     X_test, y_test = build_xy(test_df)
     pos_weight = float((y_train == 0).sum() / (y_train == 1).sum())
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_STATE)
 
-    mlflow.set_tracking_uri(f"sqlite:///{ROOT / 'mlflow.db'}")
+    mlflow.set_tracking_uri(TRACKING_URI)
     mlflow.set_experiment(MLFLOW_EXPERIMENT)
 
     candidates = [(f"{n}__{st}", n, st, {})
@@ -187,26 +190,23 @@ def main() -> None:
 
     # Select on cross-validated PR-AUC, never on the test set.
     best_run = results.iloc[0]["run"]
-    model, threshold, run_id, model_uri = fitted[best_run]
+    _, threshold, run_id, model_uri = fitted[best_run]
     version = mlflow.register_model(model_uri, REGISTERED_MODEL_NAME)
-    print(f"Best: {best_run} -> registered {REGISTERED_MODEL_NAME} v{version.version}")
-
-    # Plain-file copy so the API image doesn't need the MLflow store.
-    MODELS_DIR.mkdir(exist_ok=True)
-    joblib.dump(model, MODELS_DIR / "model.joblib")
-    best = results.iloc[0].to_dict()
-    metadata = {
-        "model": best_run,
-        "threshold": threshold,
-        "features": FEATURE_COLS,
-        "mlflow_run_id": run_id,
-        "registered_model": REGISTERED_MODEL_NAME,
-        "registered_version": int(version.version),
-        "metrics": {k: (round(v, 4) if isinstance(v, float) else v) for k, v in best.items()},
-    }
-    (MODELS_DIR / "metadata.json").write_text(json.dumps(metadata, indent=2))
+    client = mlflow.MlflowClient()
+    client.set_registered_model_alias(REGISTERED_MODEL_NAME, CHALLENGER_ALIAS, version.version)
+    client.set_model_version_tag(REGISTERED_MODEL_NAME, version.version, "candidate", best_run)
+    print(f"Best: {best_run} -> {REGISTERED_MODEL_NAME} v{version.version} "
+          f"@{CHALLENGER_ALIAS} (run src.promote to gate it into production)")
 
 
 if __name__ == "__main__":
-    np.random.seed(RANDOM_STATE)
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--split-only", action="store_true",
+                        help="write data/processed/{train,test}.csv and stop")
+    if parser.parse_args().split_only:
+        prepare_split()
+    else:
+        np.random.seed(RANDOM_STATE)
+        main()

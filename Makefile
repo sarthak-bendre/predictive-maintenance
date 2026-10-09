@@ -1,12 +1,12 @@
 PY := .venv/bin/python
 export MLFLOW_DISABLE_AGENT_HINT=1
 
-.PHONY: setup pipeline data train explain drift test serve mlflow docker
+.PHONY: setup pipeline data train promote explain drift test serve mlflow docker
 
 setup:
 	python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
-pipeline: data train explain drift
+pipeline: data train promote explain drift
 
 data:
 	$(PY) -m src.ingest
@@ -14,6 +14,9 @@ data:
 
 train:
 	$(PY) -m src.train
+
+promote:
+	$(PY) -m src.promote
 
 explain:
 	$(PY) -m src.explain

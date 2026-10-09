@@ -9,12 +9,13 @@ flowchart LR
     A[UCI raw CSV] --> B[validate.py<br/>schema & ranges]
     B --> C[features.py<br/>drop leakage, physics features]
     C --> D[train.py<br/>3 models × 2 imbalance strategies<br/>+ tuned RF / XGBoost<br/>5-fold CV, cost threshold]
-    D --> E[(MLflow<br/>runs + model registry)]
-    D --> F[models/model.joblib<br/>+ threshold]
+    D --> E[(MLflow registry<br/>@challenger)]
+    E --> P{promote.py<br/>quality gate +<br/>beats @champion?}
+    P -- yes --> F[models/model.joblib<br/>@champion + threshold]
+    P -- no --> K[keep current champion]
     F --> G[FastAPI /predict<br/>probability + SHAP drivers<br/>in Docker]
     G -. new data .-> H[drift.py<br/>Evidently report]
     H -. drift > 30% .-> D
-    CI[GitHub Actions<br/>test → train → build → smoke test] -.-> D & G
 ```
 
 ## Results
@@ -80,6 +81,19 @@ The train/test split is stratified 80/20, so both sets keep the 3.4% failure rat
 
 HTML reports are written to `reports/drift_*.html`.
 
+### 6. Promotion gate: champion vs. challenger
+Training never replaces the production model directly. It registers its best model in MLflow under the alias **`@challenger`**. Then `src/promote.py`:
+
+1. **Quality gate.** Scores the challenger on the held-out test set. If recall is below 0.75 or PR-AUC is below 0.80, the step fails with exit code 1, which fails the pipeline.
+2. **Head-to-head.** Scores the current **`@champion`** on the *same* test set, each model at its own threshold. The challenger is promoted only if it **lowers the business cost**; PR-AUC breaks ties.
+3. **Promotion.** Moves the `@champion` alias to the winner and exports it to `models/` for the API image. Every decision is written to `reports/promotion.json`.
+
+Example: retraining on the same data produced an identical model (cost 111 vs 111), so the gate kept v1:
+```
+PROMOTED challenger v1 (random_forest__class_weight__tuned) to @champion: no champion yet
+KEPT champion v1: challenger v2 not better (cost 111 vs champion 111, PR-AUC 0.895 vs 0.895)
+```
+
 ## Quickstart
 
 ```bash
@@ -106,8 +120,19 @@ Each prediction includes `top_drivers`: the SHAP contributions that pushed this 
 
 The API rejects physically impossible input with a 422 (negative torque, unknown product type, process colder than ambient, unknown fields). It returns 503 if no model is loaded.
 
-## CI (GitHub Actions)
-On every push: install dependencies → run tests (features, validation, metrics, drift, API) → ingest and train → build the Docker image → start the container and smoke-test `/health` and `/predict`. The tests use a small synthetic model, so they don't need the dataset.
+## Automation (GitHub Actions)
+
+**CI (`ci.yml`)** runs on every push: install dependencies → run tests (features, validation, metrics, promotion logic, drift, API) → ingest, train and **promote (the quality gate)** → build the Docker image → start the container and smoke-test `/health` and `/predict`. The tests use a small synthetic model, so they don't need the dataset.
+
+**Monitoring (`monitor.yml`)** runs twice a week, or on demand with a chosen scenario:
+```
+ingest → split → drift check ──no drift──▶ done
+                      │
+                   drift > 30%
+                      ▼
+                retrain → promotion gate → save registry → upload model + reports
+```
+The MLflow registry (`mlflow.db`, `mlruns/`) is carried between runs in the Actions cache, so each retrain has to beat the champion from earlier runs. The drift report, gate decision and model are attached to the run as artifacts, and a summary appears on the run page. To try it: **Actions → Monitor drift and retrain → Run workflow → `summer`**.
 
 ## Project structure
 ```
@@ -116,7 +141,8 @@ src/
   ingest.py      download from UCI
   validate.py    schema / type / range checks
   features.py    leakage removal + physics features (shared with the API)
-  train.py       model comparison, MLflow tracking + registry
+  train.py       model comparison, MLflow tracking, registers @challenger
+  promote.py     quality gate + champion/challenger promotion
   evaluate.py    imbalance-aware metrics, cost-based threshold
   explain.py     SHAP global plots + per-prediction drivers (used by the API)
   drift.py       Evidently drift reports
@@ -129,5 +155,7 @@ tests/           pytest suite
 - **Synthetic data.** AI4I 2020 is generated to resemble a real milling machine, and its failure modes follow clean, explicit rules. Real sensor data would be noisier, and performance would be lower.
 - **Snapshots, not time series.** Each row is an independent snapshot, not a sequence per machine. The model answers "failure or not" and cannot estimate remaining useful life.
 - **Random failures (RNF) are unpredictable by design.** They are independent of the sensors, which puts a ceiling on recall.
+- **Retraining has no new labels.** The dataset is static, so a drift-triggered retrain reuses the same data. In production, the incoming batch would be labelled once failures are confirmed and appended to the training data in `ingest.py`.
+- **The registry lives in the Actions cache.** That's fine for a demo, but GitHub evicts caches unused for 7 days. A real deployment would use a hosted MLflow tracking server.
 - **The drift test is simulated.** A shifted copy of held-out data stands in for live production data.
 - **Tuning is not nested.** The hyperparameter search and the CV estimate use the same training data (different fold seeds), so the tuned models' CV scores are slightly optimistic. The untouched test set gives the unbiased check.

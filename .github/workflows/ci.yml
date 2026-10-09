@@ -21,13 +21,14 @@ jobs:
       - name: Unit and API tests
         run: pytest -v
 
-      - name: Ingest, validate and train
+      - name: Ingest, validate, train and promote
         env:
           MLFLOW_DISABLE_AGENT_HINT: "1"
         run: |
           python -m src.ingest
           python -m src.validate
           python -m src.train
+          python -m src.promote   # quality gate: fails the build if the model is too weak
 
       - name: Build Docker image
         run: docker build -t predictive-maintenance:${{ github.sha }} .
