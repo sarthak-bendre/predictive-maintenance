@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-train-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Unit and API tests
+        run: pytest -v
+
+      - name: Ingest, validate and train
+        env:
+          MLFLOW_DISABLE_AGENT_HINT: "1"
+        run: |
+          python -m src.ingest
+          python -m src.validate
+          python -m src.train
+
+      - name: Build Docker image
+        run: docker build -t predictive-maintenance:${{ github.sha }} .
+
+      - name: Smoke-test the container
+        run: |
+          docker run -d -p 8000:8000 --name pm predictive-maintenance:${{ github.sha }}
+          for i in $(seq 1 20); do curl -sf localhost:8000/health && break; sleep 1; done
+          curl -sf -X POST localhost:8000/predict -H "Content-Type: application/json" \
+            -d '{"type":"L","air_temp_k":298.1,"process_temp_k":308.6,"rpm":1551,"torque_nm":42.8,"tool_wear_min":108}'

@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+data/raw/*.csv
+data/processed/
+mlruns/
+mlflow.db
+.pytest_cache/
+models/model.joblib
+reports/drift_*.html

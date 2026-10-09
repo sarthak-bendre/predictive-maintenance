@@ -1,0 +1,11 @@
+# Serving only. Pinned exactly: the pickled model must load with the same
+# library versions it was trained with.
+numpy==2.0.2
+pandas==2.3.3
+scikit-learn==1.7.2
+imbalanced-learn==0.14.2
+xgboost==3.2.0
+joblib==1.6.0
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+pydantic==2.14.0

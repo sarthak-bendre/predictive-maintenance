@@ -1,0 +1,18 @@
+[
+  {
+    "batch": "baseline",
+    "drifted_features": [],
+    "share_drifted": 0.0,
+    "retrain_recommended": false
+  },
+  {
+    "batch": "summer",
+    "drifted_features": [
+      "air_temp_k",
+      "process_temp_k",
+      "temp_diff_k"
+    ],
+    "share_drifted": 0.375,
+    "retrain_recommended": true
+  }
+]

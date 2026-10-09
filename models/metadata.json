@@ -1,0 +1,34 @@
+{
+  "model": "random_forest__class_weight",
+  "threshold": 0.36,
+  "features": [
+    "air_temp_k",
+    "process_temp_k",
+    "rpm",
+    "torque_nm",
+    "tool_wear_min",
+    "temp_diff_k",
+    "power_w",
+    "wear_torque",
+    "type_L",
+    "type_M",
+    "type_H"
+  ],
+  "mlflow_run_id": "7a86142a850e4fb0aa41d22ae08f8a5b",
+  "registered_model": "pm-failure-classifier",
+  "registered_version": 1,
+  "metrics": {
+    "run": "random_forest__class_weight",
+    "threshold": 0.36,
+    "cv_pr_auc": 0.8902,
+    "cv_recall": 0.845,
+    "cv_precision": 0.8876,
+    "cv_f1": 0.8658,
+    "cv_cost": 449.0,
+    "test_pr_auc": 0.8792,
+    "test_recall": 0.8382,
+    "test_precision": 0.9048,
+    "test_f1": 0.8702,
+    "test_cost": 116.0
+  }
+}
