@@ -4,6 +4,9 @@ mlflow>=3.0
 evidently==0.4.40
 matplotlib>=3.7
 seaborn>=0.13
+# Demo dashboard
+streamlit>=1.40
+plotly>=5.20
 jupyter
 # Testing
 pytest>=8.0

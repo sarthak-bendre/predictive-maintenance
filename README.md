@@ -101,6 +101,7 @@ make setup        # venv + dependencies (Python 3.10)
 make pipeline     # download → validate → train (MLflow) → SHAP → drift
 make test         # pytest
 make serve        # API at http://localhost:8000/docs
+make dashboard    # interactive demo at http://localhost:8501
 make mlflow       # MLflow UI at http://localhost:5000
 make docker       # build and run the API container
 ```
@@ -120,9 +121,20 @@ Each prediction includes `top_drivers`: the SHAP contributions that pushed this 
 
 The API rejects physically impossible input with a 422 (negative torque, unknown product type, process colder than ambient, unknown fields). It returns 503 if no model is loaded.
 
+## Demo dashboard
+
+`make dashboard` opens a Streamlit app that uses the same model and feature code as the API:
+- **Scenarios** for each failure mode (heat dissipation, power too low / too high, overstrain) plus a healthy machine. Sliders adjust any sensor.
+- **Decision**: failure probability and the alarm decision at the cost-based threshold.
+- **Why the model says this**: SHAP contribution of every input for this machine.
+- **What if**: sweep one sensor and watch the risk cross the alarm threshold. For example, the overstrained tool crosses it at about 200 minutes of wear.
+- **Model card**: test metrics, every candidate model, the last promotion decision and the drift status.
+
+![Dashboard](reports/dashboard.png)
+
 ## Automation (GitHub Actions)
 
-**CI (`ci.yml`)** runs on every push: install dependencies → run tests (features, validation, metrics, promotion logic, drift, API) → ingest, train and **promote (the quality gate)** → build the Docker image → start the container and smoke-test `/health` and `/predict`. The tests use a small synthetic model, so they don't need the dataset.
+**CI (`ci.yml`)** runs on every push: install dependencies → run tests (features, validation, metrics, promotion logic, drift, API, dashboard) → ingest, train and **promote (the quality gate)** → build the Docker image → start the container and smoke-test `/health` and `/predict`. The tests use a small synthetic model, so they don't need the dataset.
 
 **Monitoring (`monitor.yml`)** runs twice a week, or on demand with a chosen scenario:
 ```
@@ -147,6 +159,7 @@ src/
   explain.py     SHAP global plots + per-prediction drivers (used by the API)
   drift.py       Evidently drift reports
 app/main.py      FastAPI service
+dashboard/app.py Streamlit demo (predict, explain, what-if, model card)
 notebooks/       exploration and leakage check only
 tests/           pytest suite
 ```

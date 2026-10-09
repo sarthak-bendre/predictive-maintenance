@@ -1,7 +1,7 @@
 PY := .venv/bin/python
 export MLFLOW_DISABLE_AGENT_HINT=1
 
-.PHONY: setup pipeline data train promote explain drift test serve mlflow docker
+.PHONY: setup pipeline data train promote explain drift test serve dashboard mlflow docker
 
 setup:
 	python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
@@ -29,6 +29,9 @@ test:
 
 serve:
 	.venv/bin/uvicorn app.main:app --reload --port 8000
+
+dashboard:
+	.venv/bin/streamlit run dashboard/app.py
 
 mlflow:
 	.venv/bin/mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5000
