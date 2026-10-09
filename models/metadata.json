@@ -1,6 +1,6 @@
 {
-  "model": "random_forest__class_weight",
-  "threshold": 0.36,
+  "model": "random_forest__class_weight__tuned",
+  "threshold": 0.38,
   "features": [
     "air_temp_k",
     "process_temp_k",
@@ -14,21 +14,21 @@
     "type_M",
     "type_H"
   ],
-  "mlflow_run_id": "7a86142a850e4fb0aa41d22ae08f8a5b",
+  "mlflow_run_id": "f6c5eba0aa894888a57b6db419f50b85",
   "registered_model": "pm-failure-classifier",
   "registered_version": 1,
   "metrics": {
-    "run": "random_forest__class_weight",
-    "threshold": 0.36,
-    "cv_pr_auc": 0.8902,
-    "cv_recall": 0.845,
-    "cv_precision": 0.8876,
-    "cv_f1": 0.8658,
-    "cv_cost": 449.0,
-    "test_pr_auc": 0.8792,
-    "test_recall": 0.8382,
-    "test_precision": 0.9048,
-    "test_f1": 0.8702,
-    "test_cost": 116.0
+    "run": "random_forest__class_weight__tuned",
+    "threshold": 0.38,
+    "cv_pr_auc": 0.8997,
+    "cv_recall": 0.8487,
+    "cv_precision": 0.8949,
+    "cv_f1": 0.8712,
+    "cv_cost": 437.0,
+    "test_pr_auc": 0.8954,
+    "test_recall": 0.8529,
+    "test_precision": 0.8406,
+    "test_f1": 0.8467,
+    "test_cost": 111.0
   }
 }

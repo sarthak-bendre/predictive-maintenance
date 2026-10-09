@@ -10,6 +10,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from src.explain import make_explainer, shap_explanation, top_contributions
 from src.features import build_x
 
 DEFAULT_MODELS_DIR = Path(__file__).resolve().parents[1] / "models"
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI):
     if model_path.exists():
         state["model"] = joblib.load(model_path)
         state["meta"] = json.loads((models_dir / "metadata.json").read_text())
+        state["explainer"] = make_explainer(state["model"])
     yield
     state.clear()
 
@@ -62,10 +64,17 @@ class SensorReading(BaseModel):
         return self
 
 
+class Driver(BaseModel):
+    feature: str
+    value: float
+    contribution: float  # SHAP value toward "failure"
+
+
 class Prediction(BaseModel):
     failure_probability: float
     threshold: float
     failure_predicted: bool
+    top_drivers: list[Driver]
     model_version: str
 
 
@@ -81,9 +90,11 @@ def predict(reading: SensorReading):
     meta = state["meta"]
     X = build_x(pd.DataFrame([reading.model_dump()]))
     proba = float(state["model"].predict_proba(X)[0, 1])
+    exp = shap_explanation(state["model"], X, state["explainer"])
     return Prediction(
         failure_probability=round(proba, 4),
         threshold=meta["threshold"],
         failure_predicted=proba >= meta["threshold"],
+        top_drivers=top_contributions(exp[0]),
         model_version=f"{meta['registered_model']}/v{meta['registered_version']} ({meta['model']})",
     )

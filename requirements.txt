@@ -1,6 +1,5 @@
 -r requirements-api.txt
 # Training, analysis and monitoring
-shap>=0.45
 mlflow>=3.0
 evidently==0.4.40
 matplotlib>=3.7

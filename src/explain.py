@@ -6,10 +6,6 @@ matrix but plots and reasons show the original sensor values.
 import json
 
 import joblib
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import shap
@@ -18,15 +14,20 @@ from src.config import MODELS_DIR, PROCESSED_DIR, REPORTS_DIR
 from src.features import build_xy
 
 
-def shap_explanation(model, X: pd.DataFrame) -> shap.Explanation:
-    """SHAP values (log-odds / probability contribution toward 'failure') for X."""
+def make_explainer(model):
+    """Build the SHAP explainer once; reuse it for every prediction."""
     clf = model.named_steps["clf"]
-    X_scaled = model.named_steps["scaler"].transform(X)
     if hasattr(clf, "feature_importances_"):
-        explainer = shap.TreeExplainer(clf)
-    else:
-        explainer = shap.LinearExplainer(clf, X_scaled)
-    exp = explainer(X_scaled)
+        return shap.TreeExplainer(clf)
+    # Features are standardised, so an all-zeros row is the training mean.
+    n_features = model.named_steps["scaler"].n_features_in_
+    return shap.LinearExplainer(clf, shap.maskers.Independent(np.zeros((1, n_features))))
+
+
+def shap_explanation(model, X: pd.DataFrame, explainer=None) -> shap.Explanation:
+    """SHAP contributions toward 'failure' for X, reported on the original sensor scale."""
+    explainer = explainer or make_explainer(model)
+    exp = explainer(model.named_steps["scaler"].transform(X))
     values, base = exp.values, exp.base_values
     if values.ndim == 3:  # (rows, features, classes) -> failure class
         values, base = values[:, :, 1], base[:, 1]
@@ -34,16 +35,29 @@ def shap_explanation(model, X: pd.DataFrame) -> shap.Explanation:
                             data=X.values, feature_names=list(X.columns))
 
 
-def top_reasons(exp_row: shap.Explanation, k: int = 3) -> list[str]:
-    """Human-readable drivers that pushed this row toward failure."""
+def top_contributions(exp_row: shap.Explanation, k: int = 3) -> list[dict]:
+    """The k features that pushed this row hardest toward failure."""
     order = np.argsort(-exp_row.values)[:k]
     return [
-        f"{exp_row.feature_names[i]} = {exp_row.data[i]:.1f} (+{exp_row.values[i]:.3f})"
+        {"feature": exp_row.feature_names[i],
+         "value": round(float(exp_row.data[i]), 2),
+         "contribution": round(float(exp_row.values[i]), 4)}
         for i in order if exp_row.values[i] > 0
     ]
 
 
+def top_reasons(exp_row: shap.Explanation, k: int = 3) -> list[str]:
+    """Human-readable version of top_contributions."""
+    return [f"{c['feature']} = {c['value']:g} (+{c['contribution']:.3f})"
+            for c in top_contributions(exp_row, k)]
+
+
 def main() -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
     model = joblib.load(MODELS_DIR / "model.joblib")
     meta = json.loads((MODELS_DIR / "metadata.json").read_text())
     X_test, y_test = build_xy(pd.read_csv(PROCESSED_DIR / "test.csv"))

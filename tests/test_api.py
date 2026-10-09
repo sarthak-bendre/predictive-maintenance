@@ -23,6 +23,17 @@ def test_predict_returns_valid_response(client):
     body = r.json()
     assert 0.0 <= body["failure_probability"] <= 1.0
     assert body["failure_predicted"] == (body["failure_probability"] >= body["threshold"])
+    assert len(body["top_drivers"]) <= 3
+    assert all(d["contribution"] > 0 for d in body["top_drivers"])
+
+
+def test_drivers_explain_a_risky_machine(client):
+    # The fixture model learns failure = wear x torque > 9000.
+    risky = {**VALID, "torque_nm": 70, "tool_wear_min": 240}
+    body = client.post("/predict", json=risky).json()
+    assert body["failure_predicted"]
+    names = [d["feature"] for d in body["top_drivers"]]
+    assert {"wear_torque", "torque_nm", "tool_wear_min"} & set(names)
 
 
 @pytest.mark.parametrize("bad", [

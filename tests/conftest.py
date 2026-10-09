@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import make_pipeline
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from src.features import FEATURE_COLS, build_xy
@@ -40,7 +40,8 @@ def raw_df() -> pd.DataFrame:
 def models_dir(tmp_path, monkeypatch):
     """A small fitted model + metadata, wired into the API via MODELS_DIR."""
     X, y = build_xy(make_raw(500))
-    model = make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000)).fit(X, y)
+    model = Pipeline([("scaler", StandardScaler()),
+                      ("clf", LogisticRegression(max_iter=1000))]).fit(X, y)
     joblib.dump(model, tmp_path / "model.joblib")
     (tmp_path / "metadata.json").write_text(json.dumps({
         "model": "test", "threshold": 0.5, "features": FEATURE_COLS,
