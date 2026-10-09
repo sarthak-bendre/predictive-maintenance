@@ -32,6 +32,7 @@ from src.config import (
 )
 from src.evaluate import classification_metrics
 from src.features import FEATURE_COLS, build_xy
+from src.modeling import SEARCH_SPACES, parse_run_name
 
 
 def passes_gate(metrics: dict) -> tuple[bool, str]:
@@ -66,11 +67,20 @@ def load_alias(client, alias: str):
     return mv, model, float(run.data.params["threshold"]), run.info.run_name
 
 
+def pipeline_spec(model, run_name: str) -> dict:
+    """Enough to rebuild this exact model without MLflow (see src/bootstrap.py)."""
+    name, strategy = parse_run_name(run_name)
+    params = model.get_params()
+    return {"name": name, "strategy": strategy,
+            "params": {k: params[k] for k in SEARCH_SPACES.get(name, {})}}
+
+
 def export(mv, model, threshold: float, run_name: str, metrics: dict) -> None:
     MODELS_DIR.mkdir(exist_ok=True)
     joblib.dump(model, MODELS_DIR / "model.joblib")
     (MODELS_DIR / "metadata.json").write_text(json.dumps({
         "model": run_name,
+        "pipeline": pipeline_spec(model, run_name),
         "threshold": threshold,
         "features": FEATURE_COLS,
         "mlflow_run_id": mv.run_id,

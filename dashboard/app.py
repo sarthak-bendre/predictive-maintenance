@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 
 import joblib  # noqa: E402
 
+from src.bootstrap import ensure_model  # noqa: E402
 from src.explain import make_explainer, shap_explanation  # noqa: E402
 from src.features import build_x  # noqa: E402
 
@@ -55,13 +56,16 @@ FEATURE_LABELS = {
 }
 
 
-@st.cache_resource
+@st.cache_resource(show_spinner="First start: downloading the data and rebuilding the model…")
 def load_model(models_dir: str):
-    path = Path(models_dir) / "model.joblib"
+    models_dir = Path(models_dir)
+    path = models_dir / "model.joblib"
+    if not path.exists() and (models_dir / "metadata.json").exists():
+        ensure_model(models_dir)  # fresh clone / cloud host: rebuild the champion
     if not path.exists():
         return None, None, None
     model = joblib.load(path)
-    meta = json.loads((Path(models_dir) / "metadata.json").read_text())
+    meta = json.loads((models_dir / "metadata.json").read_text())
     return model, meta, make_explainer(model)
 
 

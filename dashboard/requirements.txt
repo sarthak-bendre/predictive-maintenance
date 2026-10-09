@@ -1,0 +1,11 @@
+# Dependencies for hosting the dashboard (e.g. Streamlit Community Cloud).
+# Streamlit Cloud reads this file because it sits next to dashboard/app.py.
+numpy==2.0.2
+pandas==2.3.3
+scikit-learn==1.7.2
+imbalanced-learn==0.14.2
+xgboost-cpu==3.2.0
+joblib==1.6.0
+shap==0.49.1
+streamlit==1.65.0
+plotly==7.1.0

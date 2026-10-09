@@ -132,6 +132,8 @@ The API rejects physically impossible input with a 422 (negative torque, unknown
 
 ![Dashboard](reports/dashboard.png)
 
+On a fresh clone, or on a hosting service like Streamlit Community Cloud, the trained model isn't in git. On first start the dashboard downloads the data and rebuilds the champion from `models/metadata.json`, which records its model type, imbalance strategy, hyperparameters and threshold (`src/bootstrap.py`, about 5 s). Seeds are fixed, so the rebuilt model gives the same predictions as the registered champion.
+
 ## Automation (GitHub Actions)
 
 **CI (`ci.yml`)** runs on every push: install dependencies → run tests (features, validation, metrics, promotion logic, drift, API, dashboard) → ingest, train and **promote (the quality gate)** → build the Docker image → start the container and smoke-test `/health` and `/predict`. The tests use a small synthetic model, so they don't need the dataset.
@@ -155,6 +157,8 @@ src/
   features.py    leakage removal + physics features (shared with the API)
   train.py       model comparison, MLflow tracking, registers @challenger
   promote.py     quality gate + champion/challenger promotion
+  modeling.py    model pipelines, search spaces, train/test split (no MLflow)
+  bootstrap.py   rebuild the champion from metadata.json on a fresh machine
   evaluate.py    imbalance-aware metrics, cost-based threshold
   explain.py     SHAP global plots + per-prediction drivers (used by the API)
   drift.py       Evidently drift reports
