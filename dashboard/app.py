@@ -103,7 +103,7 @@ def drivers_chart(exp_row) -> go.Figure:
                       "contribution: %{x:+.3f}<extra></extra>",
     ))
     fig.add_vline(x=0, line_width=1, line_color="rgba(128,128,128,0.6)")
-    fig.update_xaxes(title_text="← pushes toward healthy     |     pushes toward failure →",
+    fig.update_xaxes(title_text="← toward healthy   |   toward failure →",
                      title_font_size=12)
     return chart_layout(fig, height=max(220, 34 * len(df) + 60))
 

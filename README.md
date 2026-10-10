@@ -1,6 +1,8 @@
 # Predictive Maintenance with an MLOps Pipeline
 
-[![CI](https://github.com/sarthak-bendre/predictive-maintenance/actions/workflows/ci.yml/badge.svg)](https://github.com/sarthak-bendre/predictive-maintenance/actions/workflows/ci.yml)
+[![CI](https://github.com/sarthak-bendre/predictive-maintenance/actions/workflows/ci.yml/badge.svg)](https://github.com/sarthak-bendre/predictive-maintenance/actions/workflows/ci.yml) [![Live demo](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://sarthak-predictive-maintenance.streamlit.app/)
+
+**Live demo: https://sarthak-predictive-maintenance.streamlit.app/** — pick a failure scenario, move the sensor sliders, and see the risk and the reasons behind it.
 
 A model reads a milling machine's sensor values (temperature, speed, torque, tool wear) and predicts whether it is about to fail. An automated pipeline around it validates the data, trains and compares models, tracks experiments, registers the best model, serves it through an API, and watches for data drift.
 
@@ -123,7 +125,7 @@ The API rejects physically impossible input with a 422 (negative torque, unknown
 
 ## Demo dashboard
 
-`make dashboard` opens a Streamlit app that uses the same model and feature code as the API:
+[Live version](https://sarthak-predictive-maintenance.streamlit.app/) · `make dashboard` opens a Streamlit app that uses the same model and feature code as the API:
 - **Scenarios** for each failure mode (heat dissipation, power too low / too high, overstrain) plus a healthy machine. Sliders adjust any sensor.
 - **Decision**: failure probability and the alarm decision at the cost-based threshold.
 - **Why the model says this**: SHAP contribution of every input for this machine.
